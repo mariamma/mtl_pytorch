@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .utils import load_state_dict_from_url
+
 
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
@@ -124,6 +124,7 @@ class ResNet(nn.Module):
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
                  norm_layer=None):
         super(ResNet, self).__init__()
+        self.num_classes = num_classes
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
@@ -220,13 +221,13 @@ class ResNet(nn.Module):
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     model = ResNet(block, layers, **kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(model_urls[arch],
+        state_dict = torch.hub.load_state_dict_from_url(model_urls[arch],
                                               progress=progress)
         model.load_state_dict(state_dict)
     return model
 
 
-def resnet18(pretrained=False, progress=True, **kwargs):
+def resnet18(pretrained=False, progress=True, num_classes = 1000, **kwargs):
     """ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -234,8 +235,11 @@ def resnet18(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress,
+    model_ft = _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress,
                    **kwargs)
+    num_ftrs = model_ft.fc.in_features
+    model_ft.fc = nn.Linear(num_ftrs, num_classes)               
+    return model_ft
 
 
 
@@ -252,7 +256,7 @@ def resnet34(pretrained=False, progress=True, **kwargs):
 
 
 
-def resnet50(pretrained=False, progress=True, **kwargs):
+def resnet50(pretrained=False, progress=True, num_classes = 1000, **kwargs):
     """ResNet-50 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -260,9 +264,11 @@ def resnet50(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,
+    model_ft = _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,
                    **kwargs)
-
+    num_ftrs = model_ft.fc.in_features
+    model_ft.fc = nn.Linear(num_ftrs, num_classes)               
+    return model_ft
 
 
 def resnet101(pretrained=False, progress=True, **kwargs):

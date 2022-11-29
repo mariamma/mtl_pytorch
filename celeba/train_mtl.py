@@ -6,8 +6,8 @@ import torch.optim as optim
 import numpy as np
 import argparse
 import utils
-from dataset import CelebaGroupedDataset
-from resnet_MTL_pretrained import resnet18
+from dataset import CelebaDataset
+from resnet_MTL import resnet50
 from saver import Saver
 import random
 import math
@@ -19,7 +19,7 @@ parser.add_argument('--checkpoint_path', default='/scratch/mariamma/minmax/resul
 parser.add_argument('--recover', default=False, type=bool)
 parser.add_argument('--reco_type', default='last_checkpoint', type=str)
 parser.add_argument('--total_epoch', default=500, type=int)
-parser.add_argument('--image_size', default=64, type=int)
+parser.add_argument('--image_size', default=128, type=int)
 parser.add_argument('--batch_size', default=256, type=int)
 parser.add_argument('--eval_interval', default=1, type=int)
 opt = parser.parse_args()
@@ -52,7 +52,7 @@ saver = Saver(model_dir, args=opt)
 gpu = utils.check_gpu()
 # device = torch.device("cuda:{}".format(gpu) if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda:1")
-model = resnet18(task_groups, pretrained=True, trainable_weights=False).to(device)
+model = resnet50(pretrained=True, num_classes=40).to(device)
 criterion = nn.BCELoss(reduction='none')
 optimizer = optim.SAGD(model.parameters(), lr=1e-4)
 #optimizer = optim.SGD(model.parameters(), lr=1e-4)
@@ -86,12 +86,10 @@ metrics += ['FSCORE_{}'.format(c) for c in range(num_classes)]
 saver.add_metrics(metrics)
 
 # Create datasets
-train_set = CelebaGroupedDataset(opt.dataroot,
-                                 task_groups,
+train_set = CelebaDataset(opt.dataroot,
                                  split='train',
                                  image_size=opt.image_size)
-val_set = CelebaGroupedDataset(opt.dataroot,
-                               task_groups,
+val_set = CelebaDataset(opt.dataroot,
                                split='val',
                                image_size=opt.image_size)
 
@@ -125,6 +123,8 @@ while epoch<opt.total_epoch:
     for i in range(train_batches):
         # Get data
         data, targets = next(train_dataset)
+        print("Data : ", data.shape)
+        print("Targets : ", targets.shape)
         data, targets = data.to(device), [elt.to(device) for elt in targets]
         
         # Forward pass
@@ -133,7 +133,7 @@ while epoch<opt.total_epoch:
         preds = [(elt>=0.5).type(torch.float32) for elt in logits]
         class_losses = [torch.mean(criterion(logits[k], targets[k]), 0) for k in range(num_tasks)]
         task_losses = torch.stack([torch.mean(elt) for elt in class_losses])
-        loss = torch.mean(model.weights*task_losses)
+        loss = torch.mean(model.weights)
         
         # print("Logits : ", logits)
         # print("preds : ", preds)
