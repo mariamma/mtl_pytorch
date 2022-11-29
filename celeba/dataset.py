@@ -56,4 +56,5 @@ class CelebaDataset(VisionDataset):
         if self.transform is not None:
             img = self.transform(img)
         labels = torch.tensor(self.labels[index], dtype=torch.float32)    
+        #labels = self.labels[index]
         return img, labels

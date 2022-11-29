@@ -123,17 +123,28 @@ while epoch<opt.total_epoch:
     for i in range(train_batches):
         # Get data
         data, targets = next(train_dataset)
-        print("Data : ", data.shape)
-        print("Targets : ", targets.shape)
-        data, targets = data.to(device), [elt.to(device) for elt in targets]
+        # data, targets = data.to(device), [elt.to(device) for elt in targets]
+        data, targets = data.to(device), targets.to(device)
         
         # Forward pass
         feats = model(data)
-        logits = [torch.sigmoid(elt) for elt in feats]
+        logits = feats
+        # print("Feats : ", feats.shape)
         preds = [(elt>=0.5).type(torch.float32) for elt in logits]
-        class_losses = [torch.mean(criterion(logits[k], targets[k]), 0) for k in range(num_tasks)]
-        task_losses = torch.stack([torch.mean(elt) for elt in class_losses])
-        loss = torch.mean(model.weights)
+        # print("Preds : ", len(preds), len(preds[0]))
+        # print("Logits : ", len(logits))
+        #total_losses = [torch.mean(criterion(logits[k], targets[k]), 0) for k in range(opt.batch_size)]
+        #task_losses = torch.stack([torch.mean(elt) for elt in class_losses])
+        total_loss = criterion(logits, targets)
+        # print("Total loss : ", total_loss.shape)
+        
+        class_losses = torch.mean(total_loss, 0)
+        # print("Class loss : ", class_losses.shape)
+
+        loss = torch.mean(total_loss)
+        loss_classmean = torch.mean(class_losses)
+        # print("Loss = ", loss, " Class loss = ", loss_classmean)
+
         
         # print("Logits : ", logits)
         # print("preds : ", preds)
@@ -148,12 +159,12 @@ while epoch<opt.total_epoch:
 
         # Scoring
         with torch.no_grad():
-            for task in range(num_tasks):
-                train_losses[task_groups[task]] += class_losses[task].cpu() / train_batches
-                train_pred[task_groups[task]] += torch.sum(preds[task].cpu(), dim=0)
-                train_to_pred[task_groups[task]] += torch.sum(targets[task].cpu(), dim=0)
-                train_well_pred[task_groups[task]] += torch.sum((preds[task]*targets[task]).cpu(), dim=0)
-                train_accs[task_groups[task]] += torch.mean((preds[task]==targets[task]).cpu().type(torch.float32), axis=0)/train_batches
+            for task in range(num_classes):
+                train_losses[task] += class_losses[task].cpu() / train_batches
+                train_pred[task] += torch.sum(preds[task].cpu(), dim=0)
+                train_to_pred[task] += torch.sum(targets[task].cpu(), dim=0)
+                train_well_pred[task] += torch.sum((preds[task]*targets[task]).cpu(), dim=0)
+                train_accs[task] += torch.mean((preds[task]==targets[task]).cpu().type(torch.float32), axis=0)/train_batches
 
                 
         # Incr iter
@@ -183,24 +194,34 @@ while epoch<opt.total_epoch:
                   
             # Get data
             data, targets = next(val_dataset)
-            data, targets = data.to(device), [elt.to(device) for elt in targets]
+            data, targets = data.to(device), targets.to(device) # [elt.to(device) for elt in targets]
 
             # Forward
             feats = model(data)
-            logits = [torch.sigmoid(elt) for elt in feats]
+            logits = feats
+            # print("Feats : ", feats.shape)
             preds = [(elt>=0.5).type(torch.float32) for elt in logits]
-            class_losses = [torch.mean(criterion(logits[k], targets[k]), 0) for k in range(num_tasks)]
-            task_losses = torch.stack([torch.mean(elt) for elt in class_losses])
-            val_loss = torch.mean(task_losses)
+            # print("Logits : ", len(logits))
+            #total_losses = [torch.mean(criterion(logits[k], targets[k]), 0) for k in range(opt.batch_size)]
+            #task_losses = torch.stack([torch.mean(elt) for elt in class_losses])
+            total_loss = criterion(logits, targets)
+            class_losses = torch.mean(total_loss, 0)
+            # print("Class loss : ", class_losses.shape)
+
+            val_loss = torch.mean(total_loss)
+            val_loss_classmean = torch.mean(class_losses)
+            # print("Loss = ", val_loss, " Class loss = ", val_loss_classmean)
+            
+            
             
         
             # Scoring
-            for task in range(num_tasks):
-                val_losses[task_groups[task]] += class_losses[task].cpu() / val_batches
-                val_pred[task_groups[task]] += torch.sum(preds[task].cpu(), dim=0)
-                val_to_pred[task_groups[task]] += torch.sum(targets[task].cpu(), dim=0)
-                val_well_pred[task_groups[task]] += torch.sum((preds[task]*targets[task]).cpu(), dim=0)
-                val_accs[task_groups[task]] += torch.mean((preds[task]==targets[task]).cpu().type(torch.float32), axis=0)/val_batches
+            for task in range(num_classes):
+                val_losses[task] += class_losses[task].cpu() / val_batches
+                val_pred[task] += torch.sum(preds[task].cpu(), dim=0)
+                val_to_pred[task] += torch.sum(targets[task].cpu(), dim=0)
+                val_well_pred[task] += torch.sum((preds[task]*targets[task]).cpu(), dim=0)
+                val_accs[task] += torch.mean((preds[task]==targets[task]).cpu().type(torch.float32), axis=0)/val_batches
                 
                 
         # Avg scores
